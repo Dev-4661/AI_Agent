@@ -4,6 +4,8 @@ from typing import List, Dict, Any
 from config.settings import Config
 from templates.prompts import get_company_info_prompt, get_search_query_prompt
 from utils.search_tool import TavilySearchTool
+import time
+from collections import deque
 
 class CompanyChatbot:
     """Main chatbot class for company information retrieval"""
@@ -27,6 +29,10 @@ class CompanyChatbot:
             # Initialize prompt templates
             self.company_info_prompt = get_company_info_prompt()
             self.search_query_prompt = get_search_query_prompt()
+            
+            # Rate limiting: Track search timestamps (max 3 per minute)
+            self.search_timestamps = deque()
+            self.max_searches_per_minute = 3
             
             # Conversation history
             self.conversation_history: List[Dict[str, str]] = []
@@ -76,6 +82,14 @@ class CompanyChatbot:
             str: AI-generated response with company information
         """
         try:
+            # Check if this is just a greeting/casual message
+            if self._is_greeting_or_casual(user_question):
+                return self._handle_greeting(user_question)
+            
+            # Rate limiting check - only for actual company searches
+            if not self._check_rate_limit():
+                return "🚫 Oops! Only 3 searches per minute allowed. Please Try After 1 Minute."
+            
             # Step 1: Optimize the search query
             search_query = self.optimize_search_query(user_question)
             print(f"🔍 Searching for: {search_query}")
@@ -122,18 +136,115 @@ class CompanyChatbot:
         """Clear the conversation history"""
         self.conversation_history.clear()
     
+    def _is_greeting_or_casual(self, user_input: str) -> bool:
+        """
+        Check if user input is a greeting or casual message (not a company query)
+        
+        Args:
+            user_input (str): User's input
+            
+        Returns:
+            bool: True if it's a greeting/casual, False if it's a company query
+        """
+        user_input_lower = user_input.lower().strip()
+        
+        # Common greetings and casual phrases
+        greetings = [
+            'hi', 'hello', 'hey', 'hii', 'hiii', 'hiiii',
+            'good morning', 'good afternoon', 'good evening',
+            'how are you', 'how are you doing', 'whats up', "what's up",
+            'thanks', 'thank you', 'ok', 'okay', 'alright',
+            'nice', 'great', 'awesome', 'cool', 'fine',
+            'yes', 'no', 'yeah', 'yep', 'nope',
+            'good', 'bad', 'excellent', 'perfect'
+        ]
+        
+        # Check if the entire input is just a greeting
+        if user_input_lower in greetings:
+            return True
+        
+        # Check if input starts with greeting but is very short (likely just greeting)
+        for greeting in ['hi', 'hello', 'hey', 'good morning', 'good afternoon', 'good evening']:
+            if user_input_lower.startswith(greeting) and len(user_input_lower) <= len(greeting) + 5:
+                return True
+        
+        return False
+    
+    def _handle_greeting(self, user_input: str) -> str:
+        """
+        Handle greeting messages without using search
+        
+        Args:
+            user_input (str): User's greeting
+            
+        Returns:
+            str: Friendly greeting response
+        """
+        user_input_lower = user_input.lower().strip()
+        
+        if any(greeting in user_input_lower for greeting in ['hi', 'hello', 'hey']):
+            return """👋 Hello! I'm your Company Information Assistant. 
+
+I can help you find information about any company including:
+• Company overview and business model
+• Leadership and key executives  
+• Financial information and performance
+• Products and services
+• Recent news and developments
+
+Just ask me about any company you're interested in! For example:
+"Tell me about Apple Inc." or "Who is the CEO of Microsoft?"
+"""
+        
+        elif any(phrase in user_input_lower for phrase in ['how are you', 'whats up', "what's up"]):
+            return """I'm doing great, thank you for asking! 😊 
+
+I'm here to help you find information about companies. What company would you like to know more about?"""
+        
+        elif any(phrase in user_input_lower for phrase in ['thanks', 'thank you']):
+            return """You're welcome! 😊 
+
+Is there any company information you'd like me to help you find?"""
+        
+        else:
+            return """Hello! 👋 
+
+I'm your Company Information Assistant. Ask me about any company and I'll provide you with detailed information!"""
+    
+    def _check_rate_limit(self) -> bool:
+        """
+        Check if user has exceeded rate limit (3 searches per minute)
+        
+        Returns:
+            bool: True if within rate limit, False if exceeded
+        """
+        current_time = time.time()
+        
+        # Remove timestamps older than 1 minute
+        while self.search_timestamps and current_time - self.search_timestamps[0] > 60: # Created timestamp of 1 min 
+            # it automatically resets the max_search_per_min after 1 minute
+            self.search_timestamps.popleft()
+        
+        # Check if user has made too many searches
+        if len(self.search_timestamps) >= self.max_searches_per_minute:
+            return False
+        
+        # Add current search timestamp
+        self.search_timestamps.append(current_time)
+        return True
+    
     def chat(self, user_input: str) -> str:
         """
         Main chat interface
         
         Args:
-            user_input (str): User's input/question, which may include file content
+            user_input (str): User's input/question
             
         Returns:
             str: Chatbot response
         """
         if not user_input.strip():
-            return "Please ask me something about a company or upload a document!"
+            return "Please ask me something about a company!"
         
         # Handle special commands
         if user_input.lower() in ['exit', 'quit', 'bye']:
@@ -146,72 +257,8 @@ class CompanyChatbot:
         if user_input.lower() in ['help']:
             return self._get_help_message()
         
-        # Check if the input contains file content
-        if user_input.startswith("Document content from") or user_input.startswith("Image file:"):
-            try:
-                # For file content, always process it
-                if "\n\nUser question:" in user_input:
-                    file_content, user_question = user_input.split("\n\nUser question:", 1)
-                    user_question = user_question.strip()
-                    if not user_question:
-                        user_question = "Please provide a detailed summary of this document."
-                else:
-                    file_content = user_input
-                    user_question = "Please provide a detailed summary of this document."
-                
-                # Process the file content
-                return self._process_file_content(file_content, user_question)
-                
-            except Exception as e:
-                return f"I encountered an error processing the document: {str(e)}"
-        
-        # Process regular company-related questions with web search
+        # Process company-related questions
         return self.get_company_information(user_input)
-    
-    def _process_file_content(self, file_content: str, user_question: str = "") -> str:
-        """Process uploaded file content and extract company information."""
-        try:
-            # Create system and human messages for the LLM
-            system_message = SystemMessage(content="""You are an expert at extracting and summarizing company information from documents.
-            Extract all available company information in a clear, structured format. If information is not available, state "Not specified".""")
-            
-            human_message = HumanMessage(content=f"""Please analyze this document and extract company information:
-            
-            Document content:
-            {file_content}
-            
-            Extract information in this format:
-            **Company Name:** [Name]
-            **Industry/Sector:** [Industry]
-            **Location:** [Location]
-            **Key Products/Services:** [List]
-            **Contact Information:** [Details]
-            **About the Company:** [Description]
-            **Key People/Leadership:** [Names/Positions]
-            **Additional Notes:** [Any other relevant info]
-            
-            User's question: {user_question or 'Extract all company information'}
-            """)
-            
-            # Generate response using the LLM
-            response = self.llm.invoke([system_message, human_message])
-            
-            # Format the response
-            formatted_response = f"Here's the company information I found in the document:\n\n{response.content.strip()}"
-            
-            # Store in conversation history
-            self.conversation_history.append({
-                "question": user_question or "Analyze the uploaded document",
-                "file_content": file_content[:500] + "..." if len(file_content) > 500 else file_content,
-                "response": formatted_response
-            })
-            
-            return formatted_response
-            
-        except Exception as e:
-            error_msg = f"Error processing the document: {str(e)}"
-            print(error_msg)
-            return "I'm sorry, there was an error processing your document. Please try again."
     
     def _get_help_message(self) -> str:
         """Get help message for users"""

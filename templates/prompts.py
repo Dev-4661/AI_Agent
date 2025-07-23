@@ -59,27 +59,35 @@ The user has uploaded an image that has been processed through OCR (Optical Char
 2. **Identify key information** such as:
    - Company name and branding
    - Products or services offered
-   - Contact information
    - Key features or benefits
    - Target audience or market
    - Any unique selling propositions
    - Technical specifications (if applicable)
    - Pricing information (if mentioned)
 
-3. **Provide a comprehensive summary** that includes:
+3. **Extract contact information from the OCR text first**, including:
+   - Phone numbers
+   - Email addresses
+   - Physical addresses
+   - Website URLs
+   - Social media handles
+
+4. **For missing contact information only**: If contact details (phone, email, address, website) are not found in the extracted text, you may search the internet to find the company's official contact information. DO NOT search for any other information - only contact details.
+
+5. **Provide a comprehensive summary** that includes:
    - Document overview (what type of document it is)
-   - Main company/product information
-   - Key highlights and important details
+   - Main company/product information (from OCR text only)
+   - Key highlights and important details (from OCR text only)
+   - Complete contact information (from OCR + internet search if needed)
    - Any actionable insights for lead generation
 
-4. **Format your response** in a clear, structured manner with:
+6. **Format your response** in a clear, structured manner with:
    - Clear headings and bullet points
    - Emphasis on business-relevant information
    - Professional tone suitable for business analysis
+   - Clearly indicate which contact information came from OCR vs. internet search
 
-If the extracted text appears to be incomplete, corrupted, or unclear due to OCR limitations, mention this and work with whatever information is available.
-
-If no meaningful text was extracted, provide guidance on potential reasons (image quality, text size, image format, etc.) and suggest improvements.
+IMPORTANT: Only search the internet for missing contact details. All other business information must be extracted solely from the provided OCR text.
 
 Please analyze the following extracted text and provide your detailed summary:
 """
@@ -164,3 +172,5 @@ def get_search_query_prompt():
         input_variables=["question"],
         template=SEARCH_QUERY_TEMPLATE
     )
+
+
