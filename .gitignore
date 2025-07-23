@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Environment variables (contains API keys)
 .env
 .env.local
@@ -12,12 +13,23 @@ env.bak/
 venv.bak/
 
 # Python cache files
+=======
+# Virtual Environment
+venv/
+env/
+.venv/
+
+# Python
+>>>>>>> 73d55286ac69d40a6194a945275f386ada6f7689
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
+<<<<<<< HEAD
 
 # Distribution / packaging
+=======
+>>>>>>> 73d55286ac69d40a6194a945275f386ada6f7689
 .Python
 build/
 develop-eggs/
@@ -31,21 +43,32 @@ parts/
 sdist/
 var/
 wheels/
+<<<<<<< HEAD
 pip-wheel-metadata/
 share/python-wheels/
+=======
+>>>>>>> 73d55286ac69d40a6194a945275f386ada6f7689
 *.egg-info/
 .installed.cfg
 *.egg
 MANIFEST
 
+<<<<<<< HEAD
 # Streamlit
 .streamlit/
 
 # IDE files
+=======
+# Environment variables
+.env
+
+# IDE
+>>>>>>> 73d55286ac69d40a6194a945275f386ada6f7689
 .vscode/
 .idea/
 *.swp
 *.swo
+<<<<<<< HEAD
 *~
 
 # OS generated files
@@ -61,3 +84,16 @@ Thumbs.db
 *.tmp
 *.temp
 *.log
+=======
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+>>>>>>> 73d55286ac69d40a6194a945275f386ada6f7689

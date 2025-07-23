@@ -1,9 +1,5 @@
 from langchain.prompts import PromptTemplate
 
-"""
-Prompt templates for various AI tasks
-"""
-
 # Company information search and response template
 COMPANY_INFO_TEMPLATE = """
 You are a helpful AI assistant specialized in providing accurate company information. 
@@ -49,6 +45,7 @@ User Question: {question}
 Create a focused search query (maximum 10 words) that will help find the most relevant company information:
 """
 
+<<<<<<< HEAD
 # Image analysis and summarization prompt
 IMAGE_ANALYSIS_PROMPT = """
 You are an expert document analyst specializing in extracting and summarizing information from business documents, brochures, and company materials.
@@ -152,6 +149,8 @@ Please analyze the provided document content and extract key business informatio
 Please provide a comprehensive analysis in a structured format with clear headings and actionable insights.
 """
 
+=======
+>>>>>>> 73d55286ac69d40a6194a945275f386ada6f7689
 def get_company_info_prompt():
     """Get the main company information prompt template"""
     return PromptTemplate(

@@ -383,7 +383,7 @@ def main():
                         "content": f"I couldn't process the file '{uploaded_file.name}'. Error: {str(general_error)}"
                     })
                     st.rerun()
-
+        
         st.markdown("</div>", unsafe_allow_html=True)
 
     # Initialize chatbot
@@ -448,6 +448,9 @@ def main():
         # Check if it's a greeting (doesn't count toward rate limit)
         is_greeting = is_greeting_message(prompt)
         
+        # Debug info (remove this after testing)
+        # st.write(f"Debug: Message '{prompt}' is_greeting: {is_greeting}")
+        
         if is_greeting:
             with st.chat_message("assistant"):
                 greeting_response = handle_greeting(prompt)
@@ -491,7 +494,6 @@ def main():
                                         'analysis_type': 'company_search'
                                     }
                                     st.rerun()
-                                    
                         except Exception as e:
                             error_msg = f"❌ Sorry, I encountered an error: {str(e)}"
                             st.markdown(error_msg)

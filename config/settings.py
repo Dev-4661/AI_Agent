@@ -14,10 +14,10 @@ class Config:
     # LLM Configuration
     MODEL_NAME = os.getenv('MODEL_NAME', 'gemini-2.0-flash-exp')
     TEMPERATURE = float(os.getenv('TEMPERATURE', '0.7'))
-    MAX_TOKENS = int(os.getenv('MAX_TOKENS', '1000'))
+    MAX_TOKENS = int(os.getenv('MAX_TOKENS', '800')) # Reduce token Usage
     
     # Search Configuration
-    MAX_SEARCH_RESULTS = int(os.getenv('MAX_SEARCH_RESULTS', '5'))
+    MAX_SEARCH_RESULTS = int(os.getenv('MAX_SEARCH_RESULTS', '3')) # Conserve Tavily usage
     
     @classmethod
     def validate_config(cls):
