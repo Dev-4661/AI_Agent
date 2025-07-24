@@ -1,22 +1,57 @@
 from langchain.prompts import PromptTemplate
 
-# Company information search and response template
+# Company information search and response template with structured output
 COMPANY_INFO_TEMPLATE = """
-You are a helpful AI assistant specialized in providing accurate company information. 
-You have been provided with search results about a company from reliable sources.
+You are an intelligent business research agent with access to comprehensive search tools. Your task is to gather complete company intelligence and present it in a structured format.
 
-Context from search results:
+Available Information:
 {search_results}
 
 User Question: {question}
 
-Instructions:
-1. Analyze the provided search results carefully
-2. Extract relevant information that directly answers the user's question
-3. Provide a comprehensive but concise response
-4. If the search results don't contain enough information to answer the question, clearly state what information is missing
-5. Always cite or reference the sources when providing specific details
-6. Maintain a professional and informative tone
+INSTRUCTIONS:
+You must provide a comprehensive company profile in the following EXACT structure. If any information is missing, use your Tavily search tool to find it. Make intelligent decisions about what additional searches are needed.
+
+REQUIRED OUTPUT FORMAT:
+
+**Company Name:** [Full official company name]
+
+**Contact Ph #:** [Primary business phone number with country code]
+
+**Email Id:** [Official business email or contact email]
+
+**Contact Person Name:** [CEO, Founder, or primary contact person]
+
+**Location:** [Primary business location/headquarters city and country]
+
+**Address:** [Complete business address including street, city, state/province, postal code, country]
+
+**Founder/CEO/MD:** [Name and title of key leadership - Founder, CEO, Managing Director]
+
+**Company Revenue:** [Annual revenue figures with year, currency. If not available, estimate based on company size/employees]
+
+**Market Response:** [Market position, customer feedback, industry reputation, market share information]
+
+**Leadership Team:** [Key executives, their roles, and brief backgrounds - minimum 3-5 key leaders]
+
+**Vision:** [Official company vision statement or strategic direction]
+
+**Mission:** [Official company mission statement or purpose]
+
+**Top 5 or Major Challenges:** 
+1. [Specific business challenge and its impact]
+2. [Market or competitive challenge]
+3. [Technology or operational challenge]
+4. [Financial or growth challenge]
+5. [Industry-specific or regulatory challenge]
+
+**Business Problem and its Business Impact:** [Detailed analysis of primary business challenges and their quantifiable impact on operations, revenue, market position, or growth potential]
+
+SEARCH STRATEGY:
+- If any section lacks information, immediately search for: "[company name] + [specific data point]"
+- Use multiple search queries to gather comprehensive data
+- Cross-reference information from multiple sources
+- Prioritize official company sources, financial reports, news articles, and industry analyses
 
 Response:
 """
@@ -46,95 +81,215 @@ Create a focused search query (maximum 10 words) that will help find the most re
 """
 
 
-# Image analysis and summarization prompt
-IMAGE_ANALYSIS_PROMPT = """
-You are an expert document analyst specializing in extracting and summarizing information from business documents, brochures, and company materials.
-The user has uploaded an image that has been processed through OCR (Optical Character Recognition). Your task is to:
+# Image analysis prompt updated for agent-based approach
+IMAGE_ANALYSIS_AGENT_PROMPT = """
+You are an expert document analysis agent with access to advanced search tools. The user has uploaded an image that has been processed through OCR.
 
-1. **Analyze the extracted text** to understand the document type and content
-2. **Identify key information** such as:
-   - Company name and branding
-   - Products or services offered
-   - Key features or benefits
-   - Target audience or market
-   - Any unique selling propositions
-   - Technical specifications (if applicable)
-   - Pricing information (if mentioned)
+**AGENT TASK:**
+1. **Extract Initial Information** from OCR text
+2. **Identify Information Gaps** for complete business intelligence
+3. **Use Tavily Search** to gather missing data
+4. **Compile Complete Business Profile** in required structure
 
-3. **Extract all available information from the OCR text first**, including:
-   - Phone numbers
-   - Email addresses
-   - Physical addresses
-   - Website URLs
-   - Social media handles
-   - Company description
-   - Services/products
-   - Key personnel
+**OCR EXTRACTED TEXT:**
+{ocr_text}
 
-4. **For missing critical information**: If key business information is not found in the extracted text, you may search the internet to find:
-   - Missing contact details (phone, email, address, website)
-   - Social media profiles
-   - Company address and location
-   - Additional company background information
-   - Recent news or updates about the company
+**ANALYSIS WORKFLOW:**
+1. Parse OCR text for company identifiers
+2. Identify available vs. missing information
+3. Execute intelligent searches for gaps
+4. Validate and cross-reference findings
+5. Compile structured business intelligence report
 
-5. **Provide a comprehensive summary** that includes:
-   - Document overview (what type of document it is)
-   - Main company/product information
-   - Key highlights and important details
-   - Complete contact information (clearly marked as OCR vs. web search)
-   - Missing information found through web search
-   - Any actionable insights for lead generation
+**REQUIRED OUTPUT STRUCTURE:**
+Must include all 14 required fields:
+- Company Name
+- Contact Ph #
+- Email Id  
+- Contact Person Name
+- Location
+- Address
+- Founder/CEO/MD
+- Company Revenue
+- Market Response
+- Leadership Team
+- Vision
+- Mission
+- Top 5 or Major Challenges
+- Business Problem and its Business Impact
 
-6. **Format your response** in a clear, structured manner with:
-   - Clear headings and bullet points
-   - Emphasis on business-relevant information
-   - Professional tone suitable for business analysis
-   - Clearly indicate which information came from OCR vs. internet search
-   - Highlight any missing information that couldn't be found
+**SEARCH STRATEGY FOR MISSING DATA:**
+Use Tavily search with targeted queries:
+- Company identification and verification
+- Contact information completion  
+- Leadership and executive team details
+- Financial performance and revenue data
+- Market position and competitive analysis
+- Strategic information (vision, mission)
+- Industry challenges and business impact analysis
 
-**Search Priority for Missing Information:**
-- Complete contact details (address, phone, email, website)
-- Social media profiles (LinkedIn, Twitter, Instagram, YouTube)
-- Company headquarters/office locations
-- Recent company news or press releases
-- Additional product/service information
-
-Please analyze the following extracted text and provide your detailed summary:
+Execute systematic information gathering and present complete intelligence report.
 """
 
-# Comprehensive company information gathering prompt
-MISSING_INFO_SEARCH_PROMPT = """
-You are a business intelligence assistant specialized in gathering comprehensive company information.
+# Agent-based follow-up conversation prompt
+FOLLOWUP_AGENT_PROMPT = """
+You are an intelligent conversation agent managing ongoing company research dialogue.
 
-Based on the initial analysis, the following information has been identified:
+**CONVERSATION CONTEXT:**
+Company: {company_name}
+Previous Context: {previous_context}
+New Query: {question}
+Additional Search Results: {search_results}
 
-**Available Information:**
+**AGENT OBJECTIVES:**
+1. Understand the specific follow-up request
+2. Identify what additional information is needed
+3. Use Tavily search to fill information gaps
+4. Update the company profile with new findings
+5. Maintain conversation continuity
+
+**RESPONSE STRATEGY:**
+- Build upon previous research findings
+- Address the specific follow-up question
+- Enhance the structured company profile
+- Identify and search for any missing information
+- Provide comprehensive updated intelligence
+
+**OUTPUT FORMAT:**
+Maintain the structured format while addressing the specific follow-up:
+- Update relevant sections of the 14-point structure
+- Highlight new information discovered
+- Address the specific user question
+- Indicate any information still requiring additional research
+
+Execute intelligent follow-up research and provide enhanced company intelligence.
+"""
+
+# Agent-based search and information gathering template
+AGENT_SEARCH_TEMPLATE = """
+You are an intelligent business research agent with access to Tavily search tools. You need to systematically gather information about a company to complete a comprehensive business intelligence report.
+
+Current Available Information:
 {available_info}
 
-**Missing Information to Search For:**
+Missing Information Needed:
 {missing_info}
 
-Your task is to search the internet and find the missing information listed above. For each piece of missing information:
+SEARCH STRATEGY:
+Use Tavily search tool with these intelligent search patterns:
+1. For company basics: "[company_name] headquarters address contact information"
+2. For financial data: "[company_name] revenue annual report financial performance"
+3. For leadership: "[company_name] CEO founder management team executives"
+4. For market position: "[company_name] market share industry position competitors"
+5. For challenges: "[company_name] business challenges industry problems"
+6. For vision/mission: "[company_name] vision mission statement strategic goals"
 
-1. **Search systematically** for the company using available identifiers (name, website, email domain, etc.)
-2. **Verify information accuracy** by cross-referencing multiple sources
-3. **Prioritize official sources** such as:
-   - Company's official website
-   - LinkedIn company page
-   - Business directories
-   - News articles and press releases
-   - Government business registrations
+Make multiple targeted searches and synthesize the information into the required structured format.
 
-4. **Provide structured results** including:
-   - The missing information found
-   - Source of the information
-   - Confidence level (High/Medium/Low)
-   - Any additional relevant details discovered
+Search Priority:
+1. Company basics (name, contact, location, address)
+2. Leadership information (CEO, founder, key executives)
+3. Financial data (revenue, market position)
+4. Strategic information (vision, mission, challenges)
+5. Market analysis (position, challenges, business impact)
 
-5. **If information cannot be found**, clearly state what remains missing and suggest alternative search strategies.
+Execute searches systematically and compile comprehensive results.
+"""
 
-Please conduct a thorough search and provide a comprehensive update on the missing information:
+# Agent decision-making prompt for intelligent information gathering
+AGENT_DECISION_PROMPT = """
+You are an intelligent business research agent. Analyze the current information status and decide what searches to perform next.
+
+Current Information Status:
+{current_info}
+
+Required Information Checklist:
+- Company Name: {has_company_name}
+- Contact Information: {has_contact_info}
+- Leadership Details: {has_leadership}
+- Financial Data: {has_financial}
+- Market Position: {has_market_info}
+- Strategic Information: {has_strategic}
+- Business Challenges: {has_challenges}
+
+DECISION LOGIC:
+1. Identify the most critical missing information
+2. Prioritize searches that can fill multiple data points
+3. Choose search queries that are most likely to return comprehensive results
+4. Decide if additional searches are needed or if current data is sufficient
+
+Next Action Decision:
+"""
+
+# Comprehensive company intelligence gathering prompt for agents
+BUSINESS_INTELLIGENCE_AGENT_PROMPT = """
+You are a senior business intelligence agent specializing in comprehensive company profiling. You have access to advanced search tools and must deliver a complete business intelligence report.
+
+Company Target: {company_name}
+Initial Query: {question}
+Available Data: {available_info}
+
+AGENT OBJECTIVES:
+1. Gather ALL required information using intelligent search strategies
+2. Fill information gaps using targeted Tavily searches
+3. Validate information accuracy across multiple sources
+4. Present findings in the structured format required
+
+REQUIRED INTELLIGENCE GATHERING:
+
+**BASIC COMPANY DATA:**
+- Official company name and registration details
+- Primary contact information (phone, email)
+- Headquarters and office locations
+- Complete business address
+
+**LEADERSHIP INTELLIGENCE:**
+- Founder(s) background and history
+- Current CEO/Managing Director details
+- Key executive team (C-level and VPs)
+- Leadership team backgrounds and expertise
+
+**FINANCIAL INTELLIGENCE:**
+- Annual revenue (latest available year)
+- Revenue growth trends
+- Company valuation (if available)
+- Employee count and growth
+
+**MARKET INTELLIGENCE:**
+- Industry position and market share
+- Competitive landscape analysis
+- Customer base and market response
+- Brand reputation and market perception
+
+**STRATEGIC INTELLIGENCE:**
+- Official vision and mission statements
+- Strategic goals and initiatives
+- Business model and value proposition
+- Growth strategies and expansion plans
+
+**CHALLENGE ANALYSIS:**
+- Industry-specific challenges
+- Competitive pressures
+- Operational challenges
+- Market and economic challenges
+- Technology and innovation challenges
+
+**BUSINESS IMPACT ASSESSMENT:**
+- Revenue impact of challenges
+- Market position threats
+- Operational efficiency issues
+- Growth constraint analysis
+- Strategic risk assessment
+
+SEARCH EXECUTION STRATEGY:
+Use systematic search approach with Tavily tool:
+1. Company overview searches
+2. Leadership and management searches
+3. Financial performance searches
+4. Market position and competition searches
+5. Strategic direction and challenges searches
+
+Compile all intelligence into the required structured format.
 """
 
 # Prompt for when no text is detected in image
@@ -199,17 +354,17 @@ Please provide a comprehensive analysis in a structured format with clear headin
 
 
 def get_company_info_prompt():
-    """Get the main company information prompt template"""
+    """Get the main company information prompt template for agent-based approach"""
     return PromptTemplate(
         input_variables=["search_results", "question"],
         template=COMPANY_INFO_TEMPLATE
     )
 
 def get_followup_prompt():
-    """Get the follow-up question prompt template"""
+    """Get the follow-up question prompt template for agent-based approach"""
     return PromptTemplate(
         input_variables=["company_name", "previous_context", "search_results", "question"],
-        template=FOLLOWUP_TEMPLATE
+        template=FOLLOWUP_AGENT_PROMPT
     )
 
 def get_search_query_prompt():
@@ -219,64 +374,138 @@ def get_search_query_prompt():
         template=SEARCH_QUERY_TEMPLATE
     )
 
-def get_missing_info_search_prompt():
-    """Get the missing information search prompt template"""
+def get_agent_search_prompt():
+    """Get the agent-based search prompt template"""
     return PromptTemplate(
         input_variables=["available_info", "missing_info"],
-        template=MISSING_INFO_SEARCH_PROMPT
+        template=AGENT_SEARCH_TEMPLATE
     )
 
-# Email template generation prompt
-EMAIL_TEMPLATE_PROMPT = """
-You are a professional sales email writer specializing in B2B outreach. Based on the company analysis provided, create a personalized and compelling email template.
+def get_business_intelligence_agent_prompt():
+    """Get the comprehensive business intelligence agent prompt"""
+    return PromptTemplate(
+        input_variables=["company_name", "question", "available_info"],
+        template=BUSINESS_INTELLIGENCE_AGENT_PROMPT
+    )
 
-**Company Analysis:**
+def get_agent_decision_prompt():
+    """Get the agent decision-making prompt"""
+    return PromptTemplate(
+        input_variables=["current_info", "has_company_name", "has_contact_info", "has_leadership", 
+                         "has_financial", "has_market_info", "has_strategic", "has_challenges"],
+        template=AGENT_DECISION_PROMPT
+    )
+
+def get_image_analysis_agent_prompt():
+    """Get the image analysis agent prompt"""
+    return PromptTemplate(
+        input_variables=["ocr_text"],
+        template=IMAGE_ANALYSIS_AGENT_PROMPT
+    )
+
+def get_agent_system_prompt():
+    """Get the master agent system prompt"""
+    return PromptTemplate(
+        input_variables=[],
+        template=AGENT_SYSTEM_PROMPT
+    )
+
+# Email generation prompt updated for agent-based structured data
+EMAIL_TEMPLATE_AGENT_PROMPT = """
+You are a professional sales email generation agent. Using the comprehensive company analysis with structured data points, create compelling B2B outreach emails.
+
+**STRUCTURED COMPANY ANALYSIS:**
 {company_analysis}
 
-**Key Insights Identified:**
+**KEY INSIGHTS FROM 14-POINT ANALYSIS:**
 {key_insights}
 
-**Your Task:**
-Create a professional email template that:
+**EMAIL GENERATION STRATEGY:**
+Using the structured company profile (Company Name, Contact Info, Leadership, Revenue, Market Position, Challenges, etc.), create personalized email templates that:
 
-1. **Personalization**: 
-   - Address the specific company and industry
-   - Reference specific details from the analysis
-   - Show genuine understanding of their business
+1. **Leverage Specific Data Points:**
+   - Reference actual company revenue/size for credibility
+   - Mention specific leadership (CEO/Founder) for personalization
+   - Address identified business challenges directly
+   - Reference market position and competitive landscape
 
-2. **Key Insights Integration**:
-   - Naturally weave in the identified pain points or opportunities
-   - Demonstrate knowledge of their current situation
-   - Reference their products/services or recent developments
+2. **Challenge-Solution Mapping:**
+   - Connect identified "Top 5 Major Challenges" to your solutions
+   - Reference "Business Problem and Business Impact" specifically
+   - Use market response and position data for context
+   - Align with company vision/mission where relevant
 
-3. **Proposed Solution**:
-   - Present a solution that directly addresses the identified insights
-   - Explain how your offering solves their specific challenges
-   - Include relevant benefits and value propositions
-   - Make the connection between their needs and your solution clear
+3. **Personalization Elements:**
+   - Use actual contact person name from analysis
+   - Reference specific location/market presence
+   - Mention industry-specific challenges identified
+   - Connect to leadership team background/expertise
 
-4. **Professional Structure**:
-   - Engaging subject line
-   - Professional greeting
-   - Brief introduction and credibility
-   - Value-focused body with insights and solution
-   - Clear call-to-action
-   - Professional closing
+4. **Value Proposition Integration:**
+   - Address revenue impact potential
+   - Reference market position improvement opportunities
+   - Connect to strategic vision/mission alignment
+   - Quantify potential business impact
 
-5. **Tone and Style**:
-   - Professional yet conversational
-   - Consultative approach, not pushy
-   - Focus on value delivery
-   - Respectful of their time
+**OUTPUT REQUIREMENTS:**
+- Compelling subject line with company-specific reference
+- Personalized greeting using contact person name
+- Body integrating specific challenges and market insights
+- Clear value proposition addressing identified problems
+- Professional call-to-action
+- Signature placeholder
 
-**Email Template Requirements:**
-- Subject line (compelling and relevant)
-- Email body (200-300 words)
-- Clear value proposition
-- Specific call-to-action
-- Professional signature placeholder
+Generate professional email template using structured company intelligence:
+"""
 
-Please generate a complete email template based on the provided analysis:
+# Agent system prompt for orchestrating the entire workflow
+AGENT_SYSTEM_PROMPT = """
+You are a Master Business Intelligence Agent coordinating a team of specialized sub-agents to gather comprehensive company information.
+
+**AGENT CAPABILITIES:**
+- Access to Tavily search tool for real-time information gathering
+- Document analysis and OCR processing
+- Structured data compilation and validation
+- Intelligent decision-making for information gaps
+
+**WORKFLOW ORCHESTRATION:**
+1. **Information Assessment Agent:** Analyze current data status
+2. **Search Strategy Agent:** Plan and execute targeted searches
+3. **Data Validation Agent:** Cross-reference and verify information
+4. **Compilation Agent:** Structure findings into required format
+
+**REQUIRED OUTPUT STRUCTURE (14 KEY POINTS):**
+1. Company Name
+2. Contact Ph #
+3. Email Id
+4. Contact Person Name
+5. Location
+6. Address
+7. Founder/CEO/MD
+8. Company Revenue
+9. Market Response
+10. Leadership Team
+11. Vision
+12. Mission
+13. Top 5 or Major Challenges
+14. Business Problem and its Business Impact
+
+**AGENT DECISION LOGIC:**
+- If information is incomplete, trigger Tavily search
+- Prioritize official sources and recent data
+- Validate information across multiple sources
+- Make intelligent inferences when direct data is unavailable
+- Ensure all 14 points are addressed
+
+**SEARCH OPTIMIZATION:**
+Use targeted search queries for maximum efficiency:
+- Company fundamentals: "[company] headquarters contact revenue"
+- Leadership: "[company] CEO founder executive team"
+- Financial: "[company] annual revenue financial performance"
+- Strategic: "[company] vision mission business challenges"
+- Market: "[company] market position industry analysis"
+
+Execute comprehensive business intelligence gathering with structured output.
 """
 
 # Follow-up email template prompt
@@ -301,10 +530,10 @@ Create a follow-up email template that adds value and maintains engagement:
 
 
 def get_email_template_prompt():
-    """Get the email template generation prompt"""
+    """Get the email template generation prompt for agent-based approach"""
     return PromptTemplate(
         input_variables=["company_analysis", "key_insights"],
-        template=EMAIL_TEMPLATE_PROMPT
+        template=EMAIL_TEMPLATE_AGENT_PROMPT
     )
 
 def get_followup_email_prompt():
@@ -313,5 +542,4 @@ def get_followup_email_prompt():
         input_variables=["previous_context", "additional_insights"],
         template=FOLLOWUP_EMAIL_PROMPT
     )
-
 

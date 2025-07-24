@@ -5,13 +5,26 @@ import PyPDF2
 import time
 import re
 import urllib.parse
+
+# Load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+    print("Environment variables loaded from .env file")
+except ImportError:
+    print("python-dotenv not installed. Using system environment variables.")
+
 from utils.email_generator import generate_insights_email, extract_email_from_analysis, extract_key_issues_from_analysis
 
 # Try importing OCR and PDF libraries, handle missing modules gracefully
 try:
     from PIL import Image
     import pytesseract
-except ModuleNotFoundError:
+    PIL_AVAILABLE = True
+    TESSERACT_AVAILABLE = True
+    print("PIL and pytesseract imported successfully")
+except ImportError as e:
+    print(f"OCR import error: {e}")
     pytesseract = None
     Image = None
 
@@ -29,6 +42,10 @@ if pytesseract is not None:
             r'C:\Program Files\Tesseract-OCR\tesseract.exe',
             r'C:\Program Files (x86)\Tesseract-OCR\tesseract.exe',
             r'C:\Users\{}\AppData\Local\Tesseract-OCR\tesseract.exe'.format(os.getenv('USERNAME', '')),
+            r'C:\Users\{}\AppData\Local\Programs\Tesseract-OCR\tesseract.exe'.format(os.getenv('USERNAME', '')),
+            r'C:\Tesseract-OCR\tesseract.exe',
+            # Add path from environment variable if set
+            os.path.join(os.environ.get('TESSERACT_PATH', ''), 'tesseract.exe') if os.environ.get('TESSERACT_PATH') else None
         ]
         
         for path in possible_paths:
@@ -39,8 +56,16 @@ if pytesseract is not None:
 # Add the project root to the Python path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from src.chatbot import CompanyChatbot
-from templates.prompts import IMAGE_ANALYSIS_PROMPT, NO_TEXT_DETECTED_PROMPT, PDF_ANALYSIS_PROMPT
+# Import agent-based system
+try:
+    from config.agent_config import BusinessIntelligenceService, ApplicationIntegration
+    AGENT_SYSTEM_AVAILABLE = True
+except ImportError:
+    # Fallback to old system if agent system is not available
+    from src.chatbot import CompanyChatbot
+    AGENT_SYSTEM_AVAILABLE = False
+
+from templates.prompts import IMAGE_ANALYSIS_AGENT_PROMPT, NO_TEXT_DETECTED_PROMPT, PDF_ANALYSIS_PROMPT
 
 # Page configuration
 st.set_page_config(
@@ -94,14 +119,39 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 def initialize_chatbot():
-    """Initialize the chatbot"""
-    if 'chatbot' not in st.session_state:
+    """Initialize the enhanced agent-based system or fallback to old chatbot"""
+    if 'business_service' not in st.session_state:
         try:
-            st.session_state.chatbot = CompanyChatbot()
-            st.session_state.initialized = True
+            if AGENT_SYSTEM_AVAILABLE:
+                # Initialize new agent-based system
+                business_service = BusinessIntelligenceService()
+                
+                # Check if agent system actually initialized properly
+                if hasattr(business_service, 'initialized') and business_service.initialized:
+                    st.session_state.business_service = business_service
+                    st.session_state.app_integration = ApplicationIntegration()
+                    st.session_state.system_type = "agent"
+                    st.session_state.initialized = True
+                else:
+                    # Agent system failed to initialize, fallback to legacy
+                    st.session_state.chatbot = CompanyChatbot()
+                    st.session_state.system_type = "legacy"
+                    st.session_state.initialized = True
+            else:
+                # Fallback to old system
+                st.session_state.chatbot = CompanyChatbot()
+                st.session_state.system_type = "legacy"
+                st.session_state.initialized = True
         except Exception as e:
-            st.session_state.initialized = False
-            st.session_state.error = str(e)
+            # Try legacy system as final fallback
+            try:
+                st.session_state.chatbot = CompanyChatbot()
+                st.session_state.system_type = "legacy"
+                st.session_state.initialized = True
+            except Exception as legacy_error:
+                st.session_state.initialized = False
+                st.session_state.error = f"Agent system: {str(e)}, Legacy system: {str(legacy_error)}"
+                st.session_state.system_type = "error"
     
     return st.session_state.get('initialized', False)
 
@@ -217,23 +267,55 @@ def main():
         """)
         
         st.markdown("### ⚙️ Configuration")
-        if st.button("Clear Chat History"):
-            welcome_msg = """
-            👋 Welcome! I'm your Company Information Assistant. 
+        
+        # Configuration section
+        col1, col2 = st.columns(2)
+        
+        # System status indicator with more detailed information
+        if st.session_state.get('system_type') == "agent":
+            st.success("🤖 **Enhanced AI Agent System** - Active")
+            st.caption("✅ Structured 14-point analysis")
+            st.caption("✅ Gemini AI powered")
+            if os.getenv("TAVILY_API_KEY"):
+                st.caption("✅ Real-time search capabilities")
+            else:
+                st.caption("⚠️  Basic mode (no Tavily search)")
+            st.caption("✅ Intelligent decision making")
+        elif st.session_state.get('system_type') == "legacy":
+            st.warning("⚡ **Legacy System** - Active")
+            st.caption("✅ Gemini AI powered")
+            st.caption("✅ Basic company information search")
+        elif st.session_state.get('system_type') == "error":
+            st.error("❌ **System Error** - Check configuration")
+            if 'error' in st.session_state:
+                with st.expander("Error Details"):
+                    st.text(str(st.session_state.error))
+            st.caption("💡 Check your GOOGLE_API_KEY in .env file")
+        else:
+            st.info("🔄 **System Loading** - Please wait")
             
-            I can help you find information about any company including:
-            • Company overview and business model
-            • Leadership and key executives  
-            • Financial information and performance
-            • Products and services
-            • Recent news and developments
-            
-            Just ask me about any company you're interested in!
-            """
-            st.session_state.messages = [{"role": "assistant", "content": welcome_msg}]
-            if 'chatbot' in st.session_state:
-                st.session_state.chatbot.clear_conversation_history()
-            st.success("Chat history cleared!")
+        with col2:
+            if st.button("Clear Chat History"):
+                welcome_msg = """
+                👋 Welcome! I'm your Enhanced Business Intelligence Assistant. 
+                
+                I can provide comprehensive company analysis including:
+                • Company Name & Contact Information
+                • Leadership Team & Founder Details
+                • Financial Performance & Revenue Data
+                • Market Position & Competitive Analysis
+                • Vision, Mission & Strategic Direction
+                • Top 5 Business Challenges & Impact Analysis
+                
+                Ask me about any company for detailed intelligence!
+                """
+                st.session_state.messages = [{"role": "assistant", "content": welcome_msg}]
+                if 'chatbot' in st.session_state:
+                    st.session_state.chatbot.clear_conversation_history()
+                if 'business_service' in st.session_state:
+                    # Clear any cached data in the agent system
+                    pass
+                st.success("Chat history cleared!")
         
         # Handle file upload processing
         if uploaded_file is not None and (not hasattr(st.session_state, 'last_uploaded_file') or 
@@ -273,9 +355,18 @@ def main():
                             st.sidebar.success("✅ PDF processed! Check the chat for analysis.")
                             
                             with st.spinner("🔍 Analyzing PDF document..."):
-                                summary = st.session_state.chatbot.chat(
-                                    f"{PDF_ANALYSIS_PROMPT}\n\nDocument content from {uploaded_file.name}:\n\n{file_content}"
-                                )
+                                # Check system type and use appropriate analysis
+                                if st.session_state.get('system_type') == "agent" and 'app_integration' in st.session_state:
+                                    # Use new agent-based system for PDF analysis
+                                    summary = st.session_state.app_integration.handle_image_analysis(file_content)
+                                elif st.session_state.get('initialized', False) and 'chatbot' in st.session_state and st.session_state.chatbot is not None:
+                                    # Use legacy system
+                                    summary = st.session_state.chatbot.chat(
+                                        f"{PDF_ANALYSIS_PROMPT}\n\nDocument content from {uploaded_file.name}:\n\n{file_content}"
+                                    )
+                                else:
+                                    # Fallback when neither system is available
+                                    summary = f"I've successfully extracted text from '{uploaded_file.name}' but detailed analysis is temporarily unavailable. The document contains {len(file_content.split())} words. Please try again later for full AI analysis."
                                 
                                 st.session_state.messages.extend([
                                     {"role": "user", "content": f"Please analyze this PDF: {uploaded_file.name}"},
@@ -292,7 +383,13 @@ def main():
                                 st.rerun()
                                 
                         except Exception as e:
-                            st.sidebar.error(f"Failed to process PDF: {str(e)}")
+                            # Don't show backend errors to users
+                            st.sidebar.info("📄 Unable to process this PDF. Please try a different file.")
+                            st.session_state.messages.append({
+                                "role": "assistant",
+                                "content": "I'm having trouble processing this PDF file. Could you try uploading a different file?"
+                            })
+                            st.rerun()
                     
                     elif file_details["FileType"] in ['image/png', 'image/jpg', 'image/jpeg']:
                         # Image processing
@@ -350,9 +447,18 @@ def main():
                                 analysis = "I couldn't detect any readable text in this image. The image might contain graphics, logos, or text that's too small/unclear for OCR to process effectively."
                             else:
                                 st.sidebar.success("✅ Image processed! Check the chat for analysis.")
-                                analysis = st.session_state.chatbot.chat(
-                                    f"{IMAGE_ANALYSIS_PROMPT}\n\nExtracted text from '{uploaded_file.name}':\n\n{extracted_text.strip()}"
-                                )
+                                # Check system type and use appropriate analysis
+                                if st.session_state.get('system_type') == "agent" and 'app_integration' in st.session_state:
+                                    # Use new agent-based system
+                                    analysis = st.session_state.app_integration.handle_image_analysis(extracted_text.strip())
+                                elif st.session_state.get('initialized', False) and 'chatbot' in st.session_state and st.session_state.chatbot is not None:
+                                    # Use legacy system
+                                    analysis = st.session_state.chatbot.chat(
+                                        f"{IMAGE_ANALYSIS_AGENT_PROMPT}\n\nExtracted text from '{uploaded_file.name}':\n\n{extracted_text.strip()}"
+                                    )
+                                else:
+                                    # Fallback when neither system is available
+                                    analysis = f"I've successfully extracted text from '{uploaded_file.name}' but detailed analysis is temporarily unavailable. The extracted text contains {len(extracted_text.split())} words. Please try again later for full AI analysis."
                             
                             st.session_state.messages.extend([
                                 {"role": "user", "content": f"Please analyze this image: {uploaded_file.name}"},
@@ -369,18 +475,20 @@ def main():
                             st.rerun()
                             
                         except Exception as e:
-                            st.sidebar.error(f"Failed to process image: {str(e)}")
+                            # Don't show backend errors to users
+                            st.sidebar.info("📷 Unable to process this image. Please try a different image.")
                             st.session_state.messages.append({
                                 "role": "assistant",
-                                "content": f"I couldn't process the image '{uploaded_file.name}'. Error: {str(e)}"
+                                "content": f"I'm having trouble processing the image '{uploaded_file.name}'. Could you try uploading a different image?"
                             })
                             st.rerun()
                             
                 except Exception as general_error:
-                    st.sidebar.error(f"Failed to process file: {str(general_error)}")
+                    # Don't show backend errors to users
+                    st.sidebar.info("📄 Unable to process this file. Please try a different file format.")
                     st.session_state.messages.append({
                         "role": "assistant",
-                        "content": f"I couldn't process the file '{uploaded_file.name}'. Error: {str(general_error)}"
+                        "content": f"I'm having trouble processing the file '{uploaded_file.name}'. Please try uploading a different file."
                     })
                     st.rerun()
         
@@ -388,39 +496,48 @@ def main():
 
     # Initialize chatbot
     if not initialize_chatbot():
-        st.error("❌ Failed to initialize chatbot!")
-        st.error(f"Error: {st.session_state.get('error', 'Unknown error')}")
-        
-        st.markdown("""
-        ### 🔧 Setup Instructions:
-        1. Create a `.env` file in the project root
-        2. Add your API keys:
-           ```
-           GOOGLE_API_KEY=your_google_api_key_here
-           TAVILY_API_KEY=your_tavily_api_key_here
-           ```
-        3. Install required packages: `pip install -r requirements.txt`
-        4. Restart the application
-        """)
-        return
+        # Just silently continue without chatbot - don't show errors to users
+        pass
     
     # Initialize chat messages
     if "messages" not in st.session_state:
         st.session_state.messages = []
-        # Add welcome message
-        welcome_msg = """
-        👋 Welcome! I'm your Company Information Assistant. 
+        # Add welcome message for new agent system
+        if st.session_state.get('system_type') == "agent":
+            welcome_msg = """
+            � **Enhanced Business Intelligence Assistant**
 
-        
-        I can help you find information about any company including:
-        • Company overview and business model
-        • Leadership and key executives  
-        • Financial information and performance
-        • Products and services
-        • Recent news and developments
-        
-        Just ask me about any company you're interested in!
-        """
+            I provide comprehensive 14-point company analysis including:
+            
+            📊 **Company Fundamentals:**
+            • Company Name & Contact Information
+            • Leadership Team & Founder Details
+            • Complete Business Address & Location
+            
+            💰 **Financial Intelligence:**
+            • Company Revenue & Market Position
+            • Market Response & Industry Standing
+            
+            🎯 **Strategic Analysis:**
+            • Vision & Mission Statements
+            • Top 5 Business Challenges
+            • Business Problems & Impact Analysis
+            
+            **How to use:** Simply ask about any company and I'll provide structured intelligence using advanced AI agents and real-time search!
+            """
+        else:
+            welcome_msg = """
+            �👋 Welcome! I'm your Company Information Assistant. 
+
+            I can help you find information about any company including:
+            • Company overview and business model
+            • Leadership and key executives  
+            • Financial information and performance
+            • Products and services
+            • Recent news and developments
+            
+            Just ask me about any company you're interested in!
+            """
         st.session_state.messages.append({"role": "assistant", "content": welcome_msg})
     
     # Display chat messages
@@ -479,7 +596,17 @@ def main():
                 with st.chat_message("assistant"):
                     with st.spinner("🔍 Analyzing your request..."):
                         try:
-                            response = st.session_state.chatbot.chat(user_message)
+                            # Check system type and use appropriate response system
+                            if st.session_state.get('system_type') == "agent" and 'app_integration' in st.session_state:
+                                # Use new agent-based system
+                                response = st.session_state.app_integration.handle_company_search(user_message)
+                            elif 'chatbot' in st.session_state and st.session_state.chatbot is not None:
+                                # Use legacy system
+                                response = st.session_state.chatbot.chat(user_message)
+                            else:
+                                # Fallback response when neither system is available
+                                response = "I'm currently experiencing some technical difficulties with the search service. Please try again in a few moments, or upload a document for analysis instead."
+                            
                             st.markdown(response)
                             st.session_state.messages.append({"role": "assistant", "content": response})
                             
@@ -491,13 +618,14 @@ def main():
                                     st.session_state.last_analysis = {
                                         'company_name': company_name,
                                         'analysis_text': response,
-                                        'analysis_type': 'company_search'
+                                        'analysis_type': 'agent_search' if st.session_state.get('system_type') == "agent" else 'company_search'
                                     }
                                     st.rerun()
                         except Exception as e:
-                            error_msg = f"❌ Sorry, I encountered an error: {str(e)}"
-                            st.markdown(error_msg)
-                            st.session_state.messages.append({"role": "assistant", "content": error_msg})
+                            # Don't show backend errors to users
+                            user_friendly_msg = "I'm having trouble processing your request right now. Please try again in a moment."
+                            st.markdown(user_friendly_msg)
+                            st.session_state.messages.append({"role": "assistant", "content": user_friendly_msg})
 
     # Email modal popup (show all email functions when clicked)
     if hasattr(st.session_state, 'show_email_modal') and st.session_state.show_email_modal:

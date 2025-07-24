@@ -100,14 +100,15 @@ class CompanyChatbot:
             if not search_results or search_results == "No search results found.":
                 return "I'm sorry, I couldn't find any information about that company. Please check the company name and try again."
             
-            # Step 3: Generate response using LLM
+            # Step 3: Generate response using LLM with company info template
             prompt = self.company_info_prompt.format(
                 search_results=search_results,
                 question=user_question
             )
+            system_message = "You are a helpful AI assistant specialized in providing accurate company information."
             
             messages = [
-                SystemMessage(content="You are a helpful AI assistant specialized in providing accurate company information."),
+                SystemMessage(content=system_message),
                 HumanMessage(content=prompt)
             ]
             
@@ -286,3 +287,27 @@ I can help you find information about companies! Here's what you can ask:
 
 Just ask me anything about a company and I'll help you find the information!
         """
+    
+    def search_web(self, query):
+        """Search the web using Tavily API with fallback to Google-only search"""
+        try:
+            # Try Tavily search first
+            search_results = self.tavily_client.search(
+                query=query,
+                search_depth="advanced",
+                include_answer=False,
+                include_images=False,
+                include_raw_content=False,
+                max_results=5
+            )
+            return search_results.get('results', [])
+        
+        except Exception as tavily_error:
+            print(f"Tavily search failed: {str(tavily_error)}")
+            
+            # Fallback: Return a message indicating search limitation
+            return [{
+                'title': 'Search Service Temporarily Unavailable',
+                'content': f'I encountered an issue with the web search service while looking for information about "{query}". Please try again later or contact support if this issue persists.',
+                'url': '#'
+            }]

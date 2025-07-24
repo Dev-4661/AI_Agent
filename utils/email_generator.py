@@ -146,3 +146,43 @@ def extract_key_issues_from_analysis(analysis_text: str) -> List[str]:
         ]
     
     return issues[:3]  # Return top 3 issues
+
+def generate_ai_powered_email_insights(
+    analysis_text: str,
+    company_name: str = None,
+    sender_name: str = "Your Name",
+    sender_company: str = "Your Company", 
+    sender_contact: str = "Your Contact Number"
+) -> str:
+    """
+    Generate AI-powered email insights by combining analysis extraction and email generation
+    
+    Args:
+        analysis_text: The AI-generated analysis text
+        company_name: Optional company name (extracted from analysis if not provided)
+        sender_name: Name of the person sending the email
+        sender_company: Company of the sender
+        sender_contact: Contact number of the sender
+    
+    Returns:
+        Formatted mailto URL with encoded parameters
+    """
+    # Extract company name if not provided
+    if not company_name:
+        company_name = "the analyzed company"
+    
+    # Extract key issues from the analysis
+    key_issues = extract_key_issues_from_analysis(analysis_text)
+    
+    # Extract recipient email if available
+    recipient_email = extract_email_from_analysis(analysis_text)
+    
+    # Generate the email
+    return generate_insights_email(
+        company_name=company_name,
+        key_issues=key_issues,
+        recipient_email=recipient_email,
+        sender_name=sender_name,
+        sender_company=sender_company,
+        sender_contact=sender_contact
+    )
