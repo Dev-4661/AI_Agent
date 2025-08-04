@@ -132,9 +132,8 @@ class BusinessIntelligenceService:
             result = self.agent_manager.process_company_query(company_query)
             
             if result["success"]:
-                # Format the response for your application
-                formatted_response = self._format_structured_response(result["company_intelligence"])
-                
+                # Pass the original query to formatting for proper multi-company detection
+                formatted_response = self._format_structured_response(result["company_intelligence"], company_query)
                 return {
                     "success": True,
                     "response": formatted_response,
@@ -173,8 +172,7 @@ class BusinessIntelligenceService:
             result = self.agent_manager.process_document_analysis(ocr_text)
             
             if result["success"]:
-                formatted_response = self._format_structured_response(result["company_intelligence"])
-                
+                formatted_response = self._format_structured_response(result["company_intelligence"], ocr_text)
                 return {
                     "success": True,
                     "response": formatted_response,
@@ -212,8 +210,8 @@ class BusinessIntelligenceService:
             result = self.agent_manager.process_follow_up(company_name, previous_context, new_question)
             
             if result["success"]:
-                formatted_response = self._format_structured_response(result["company_intelligence"])
-                
+                # Use new_question as the prompt for formatting
+                formatted_response = self._format_structured_response(result["company_intelligence"], new_question)
                 return {
                     "success": True,
                     "response": formatted_response,
@@ -234,17 +232,31 @@ class BusinessIntelligenceService:
                 "response": f"Error in follow-up research: {str(e)}"
             }
     
-    def _format_structured_response(self, intelligence_data: Dict[str, Any]) -> str:
+    def _format_structured_response(self, intelligence_data: Dict[str, Any], user_prompt: str = "") -> str:
         """
-        Format the structured intelligence data into the required response format.
-        
+        Format the structured intelligence data into a natural, ChatGPT-like response.
+        If the prompt is for a list of companies, format as a list with contact details. Otherwise, use the 14-point format.
         Args:
             intelligence_data: Structured company intelligence data
-        
+            user_prompt: The original user prompt (for query type detection)
         Returns:
-            Formatted response string in the required 14-point structure
+            Formatted response string
         """
-        
+        # Detect if the prompt is for a list of companies
+        list_keywords = ["list", "companies", "show", "top", "find", "give me", "which companies", "who are"]
+        is_list_query = any(word in user_prompt.lower() for word in list_keywords)
+
+        # If multi-company, format as a list
+        if is_list_query and isinstance(intelligence_data, list):
+            if not intelligence_data:
+                return "No companies found matching your criteria."
+            response = "Here are the companies you requested:\n"
+            for idx, company in enumerate(intelligence_data, 1):
+                response += f"\n{idx}. {company.get('company_name', 'N/A')} - {company.get('description', 'N/A')}\n"
+                response += f"   📞 Phone: {company.get('contact_phone', 'N/A')} | 📧 Email: {company.get('email_id', 'N/A')} | 🌐 Website: {company.get('website', 'N/A')} | 💼 LinkedIn: {company.get('linkedin', 'N/A')} | 📍 Location: {company.get('location', 'N/A')}\n"
+            return response
+
+        # Otherwise, use the 14-point format for single company
         formatted_response = f"""**Company Name:** {intelligence_data.get('company_name', 'Information not available')}
 
 **Contact Ph #:** {intelligence_data.get('contact_phone', 'Information not available')}
@@ -270,13 +282,10 @@ class BusinessIntelligenceService:
 **Mission:** {intelligence_data.get('mission', 'Information not available')}
 
 **Top 5 or Major Challenges:**"""
-        
         challenges = intelligence_data.get('top_5_challenges', ['Information not available'])
         for i, challenge in enumerate(challenges, 1):
             formatted_response += f"\n{i}. {challenge}"
-        
         formatted_response += f"\n\n**Business Problem and its Business Impact:** {intelligence_data.get('business_problem_impact', 'Information not available')}"
-        
         return formatted_response
     
     def get_missing_information_fields(self, intelligence_data: Dict[str, Any]) -> List[str]:

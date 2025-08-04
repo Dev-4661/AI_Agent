@@ -1,0 +1,12 @@
+langchain>=0.1.0
+openai>=1.0.0
+tavily-search>=0.1.0
+python-dotenv>=1.0.0
+streamlit>=1.30.0
+pillow>=10.0.0
+numpy>=1.24.0
+scikit-learn>=1.3.0
+# Add your LLM provider (e.g., google-generativeai, anthropic, etc.)
+# If using Gemini:
+google-generativeai>=0.3.0
+# If using Gemini or OpenAI, ensure API keys are set in .env

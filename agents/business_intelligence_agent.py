@@ -515,17 +515,47 @@ class BusinessIntelligenceAgent:
             Dict containing structured business intelligence
         """
         
-        # Extract company name from OCR text and research
-        analysis_prompt = f"""
-        Extract the company name from this OCR text and provide comprehensive business intelligence:
-        
-        OCR Text:
-        {ocr_text}
-        
-        Identify the main company mentioned and provide complete business intelligence in the 14-point format.
-        """
-        
-        return self.research_company(analysis_prompt)
+        # Always treat OCR as a single company query
+        import re
+        ocr_text_clean = ocr_text.strip()
+        if not ocr_text_clean or len(ocr_text_clean) < 5:
+            return {
+                "success": False,
+                "error": "No readable text detected in image. Please upload a clearer image.",
+                "company_intelligence": self._get_enhanced_template("Unknown Company"),
+                "raw_result": ocr_text_clean
+            }
+
+        # Extract best company name from OCR text
+        org_patterns = [r'([A-Z][A-Za-z0-9&.,\- ]{2,}(?:Ltd|Inc|Corporation|Company|LLP|Limited|Group|Solutions|Technologies|Systems|Consultancy|Services))',
+                        r'([A-Z][A-Za-z0-9&.,\- ]{2,}(?:Pvt|Private|Public|LLC|PLC|AG|S.A.|SAS|GmbH|BV|AB|SRL|Srl|S.p.A.))',
+                        r'([A-Z][A-Za-z0-9&.,\- ]{2,})']
+        found_company = None
+        for pattern in org_patterns:
+            match = re.search(pattern, ocr_text_clean, re.IGNORECASE)
+            if match:
+                found_company = match.group(1).strip()
+                break
+        if not found_company:
+            words = ocr_text_clean.split()
+            found_company = " ".join(words[:5]) if len(words) >= 2 else "Unknown Company"
+
+        # Directly run single-company research
+        result = self.research_company(found_company)
+        # If agent fails or returns 'Information not available', try to extract contact info from OCR
+        if not result.get("success", False) or (
+            result.get("company_intelligence", {}).get("company_name", "").lower() in ["information not available", "unknown company"]):
+            template = self._get_enhanced_template(found_company)
+            # Try to extract email and phone from OCR text
+            import re
+            email_match = re.search(r'[\w\.-]+@[\w\.-]+', ocr_text)
+            phone_match = re.search(r'(\+?\d[\d\s\-]{7,}\d)', ocr_text)
+            if email_match:
+                template["email_id"] = email_match.group(0)
+            if phone_match:
+                template["contact_phone"] = phone_match.group(0)
+            result["company_intelligence"] = template
+        return result
     
     def generate_follow_up_research(self, company_name: str, previous_context: str, 
                                   new_question: str) -> Dict[str, Any]:
@@ -569,8 +599,79 @@ class AgentWorkflowManager:
         self.agent = create_business_intelligence_agent(llm, tavily_api_key)
     
     def process_company_query(self, query: str) -> Dict[str, Any]:
-        """Process a company query using the intelligent agent."""
-        return self.agent.research_company(query)
+        """Process a company query using the intelligent agent. Supports multi-company queries."""
+        # Detect if the query is for a list of companies
+        list_keywords = ["list", "companies", "show", "top", "find", "give me", "which companies", "who are"]
+        is_list_query = any(word in query.lower() for word in list_keywords)
+
+        if is_list_query:
+            import re
+            num_match = re.search(r'(\d+)\s*companies', query.lower())
+            num_companies = int(num_match.group(1)) if num_match else 5
+            # Step 1: Get unique company names
+            list_prompt = f"List {num_companies} unique {query}. Only provide the company names as a numbered list. Do not repeat the same company."
+            try:
+                company_list_raw = self.agent.tavily_tool.invoke(list_prompt)
+                if hasattr(company_list_raw, 'content'):
+                    company_list_text = company_list_raw.content
+                else:
+                    company_list_text = str(company_list_raw)
+                # Extract company names from numbered list
+                company_names = re.findall(r'\d+\.\s*(.+)', company_list_text)
+                # Fallback: if no matches, try splitting by lines
+                if not company_names:
+                    company_names = [line.strip() for line in company_list_text.split('\n') if line.strip()]
+                # Remove empty and duplicate names (case-insensitive)
+                unique_names = []
+                seen = set()
+                for name in company_names:
+                    clean_name = name.strip()
+                    if clean_name and clean_name.lower() not in seen:
+                        unique_names.append(clean_name)
+                        seen.add(clean_name.lower())
+                # Step 2: For each company, use the full agent chain for details
+                companies_intelligence = []
+                for name in unique_names[:num_companies]:
+                    if not name:
+                        continue
+                    # Use the agent chain for each company, passing the full company name
+                    try:
+                        agent_result = self.agent.research_company(name)
+                        structured = agent_result.get('company_intelligence', {})
+                        # If all fields are 'Information not available', treat as no info
+                        info_fields = [v for k, v in structured.items() if k != 'company_name']
+                        # Overwrite company_name with the name from the list to ensure accuracy
+                        structured['company_name'] = name
+                        if all(str(v).lower() == 'information not available' for v in info_fields):
+                            companies_intelligence.append({
+                                "company_name": name,
+                                "error": "No information found by agent."
+                            })
+                        else:
+                            # Avoid duplicates
+                            cname = name.strip().lower()
+                            if cname and all(cname != c.get('company_name', '').strip().lower() for c in companies_intelligence):
+                                companies_intelligence.append(structured)
+                    except Exception as e:
+                        companies_intelligence.append({
+                            "company_name": name,
+                            "error": f"Error fetching details: {str(e)}"
+                        })
+                # Step 3: Return all results together
+                return {
+                    "success": True,
+                    "company_intelligence": companies_intelligence,
+                    "raw_result": company_list_text
+                }
+            except Exception as e:
+                return {
+                    "success": False,
+                    "error": str(e),
+                    "company_intelligence": [],
+                    "raw_result": ""
+                }
+        else:
+            return self.agent.research_company(query)
     
     def process_document_analysis(self, ocr_text: str) -> Dict[str, Any]:
         """Process document analysis using the intelligent agent."""
@@ -584,9 +685,7 @@ class AgentWorkflowManager:
         """Format agent result for UI display."""
         if not agent_result.get("success", False):
             return f"Error: {agent_result.get('error', 'Unknown error occurred')}"
-        
         intelligence = agent_result["company_intelligence"]
-        
         formatted_response = f"""**Company Name:** {intelligence.get('company_name', 'N/A')}
 
 **Contact Ph #:** {intelligence.get('contact_phone', 'N/A')}
@@ -612,11 +711,8 @@ class AgentWorkflowManager:
 **Mission:** {intelligence.get('mission', 'N/A')}
 
 **Top 5 or Major Challenges:**"""
-        
         challenges = intelligence.get('top_5_challenges', [])
         for i, challenge in enumerate(challenges, 1):
             formatted_response += f"\n{i}. {challenge}"
-        
         formatted_response += f"\n\n**Business Problem and its Business Impact:** {intelligence.get('business_problem_impact', 'N/A')}"
-        
         return formatted_response
